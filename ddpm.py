@@ -14,6 +14,12 @@ class MLP(nn.Module):
         self.relu1 = nn.ReLU()
         self.fc2 = nn.Linear(hidden_dim, output_dim)
 
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
+
     def forward(self, x, t):
         x = self.fc1(torch.cat([x, t], dim=1))
         x = self.relu1(x)
@@ -62,16 +68,29 @@ class Diffusion(nn.Module):
 
         return posterior_mean, posterior_variance, posterior_log_variance
 
+    def p_mean_variance(self, xt, t):
+        pred_noise = self.model(xt, t)
+        x_recon = self.get_x0_from_xt(xt, t, pred_noise)
+        x_recon.clamp_(-1, 1)
+        model_mean, posterior_variance, posterior_log_variance = self.q_posterior(
+            x_recon, xt, t
+        )
+        return model_mean, posterior_variance, posterior_log_variance
 
-def p_mean_variance(self, xt, t):
-    pred_noise = self.model(xt, t)
-    x_recon = self.predict_start_from_noise(xt, t, pred_noise)
-    x_recon.clamp_(-1, 1)
-    model_mean, posterior_variance, posterior_log_variance = self.q_posterior(
-        x_recon, xt, t
-    )
+    def p_sample(self, xt, t, noise=None):
+        b = xt[0]
+        if noise == None:
+            noise = torch.randn_like(xt)
+        posterior_mean, posterior_variance, posterior_log_variance = self.p_mean_variance(xt, t)
+        # 得到的是b*其他维度都为1的shape
+        # 当t不为0的时候 这个mask为1，否则为0 目的是t=0的时候不引入噪声
+        mask = (1 - (t == 0)).float().reshape(b, *((1,) * (len(xt) - 1)))
+        return posterior_mean + mask * torch.exp(0.5 * posterior_log_variance) * noise
 
-
-def p_sample(self, xt, t, noise=None):
-    if noise == None:
-        noise = torch.randn_like(xt)
+    def p_sample_loop(self, device, shape):
+        batch_size = shape[0]
+        x = torch.randn(shape, device=device, requires_grad=False)
+        for i in range(self.T - 1, -1, -1):
+            t = torch.full((batch_size,), i, device=device, dtype=torch.long)
+            x = self.p_sample(x, t)
+        return x
