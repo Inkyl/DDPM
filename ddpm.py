@@ -33,11 +33,12 @@ class Diffusion(nn.Module):
 
     def sample(self, n_sample, shape, device):
         xt = torch.randn(n_sample, *shape).to(device)
-        for t in range(self.T, 0):
+        for t in range(self.T, 0, -1):
             z = torch.randn(n_sample, *shape).to(device) if t > 1 else 0
             xt = self.sqrt_recip_alphas[0] * \
                  (xt - self.betas[t] /
-                  self.sqrt_one_minus_alphas_bar[t] * self.model(xt, t / self.T)) + \
+                  self.sqrt_one_minus_alphas_bar[t] *
+                  self.model(xt, torch.tensor(t / self.T).to(device).repeat(n_sample, 1))) + \
                  self.betas[t] * z
         return xt
 
