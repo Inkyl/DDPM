@@ -35,11 +35,11 @@ class Diffusion(nn.Module):
         xt = torch.randn(n_sample, *shape).to(device)
         for t in range(self.T, 0, -1):
             z = torch.randn(n_sample, *shape).to(device) if t > 1 else 0
-            xt = self.sqrt_recip_alphas[0] * \
+            xt = self.sqrt_recip_alphas[t] * \
                  (xt - self.betas[t] /
                   self.sqrt_one_minus_alphas_bar[t] *
                   self.model(xt, torch.tensor(t / self.T).to(device).repeat(n_sample, 1))) + \
-                 self.betas[t] * z
+                 self.sqrt_betas[t] * z
         return xt
 
 
@@ -48,28 +48,31 @@ def ddpm_schedules(beta1: float, beta2: float, T: int):
     alphas = 1 - betas
     log_alphas = torch.log(alphas)
     alphas_bar = torch.cumsum(log_alphas, dim=0).exp()
-    one_minus_alphas_bar = torch.sqrt(1 - alphas_bar)
-    sqrt_alphas = 1 / alphas
+    one_minus_alphas_bar = 1 - alphas_bar
+    sqrt_alphas = torch.sqrt(alphas)
     sqrt_alphas_bar = torch.sqrt(alphas_bar)
     sqrt_one_minus_alphas_bar = torch.sqrt(one_minus_alphas_bar)
     sqrt_recip_alphas = 1 / sqrt_alphas
+    sqrt_betas = torch.sqrt(betas)
+
     return {'betas': betas,
             'sqrt_alphas_bar': sqrt_alphas_bar,
             'sqrt_one_minus_alphas_bar': sqrt_one_minus_alphas_bar,
             'sqrt_recip_alphas': sqrt_recip_alphas,
+            'sqrt_betas': sqrt_betas,
             }
 
 
 if __name__ == '__main__':
-    device = 'cuda:1' if torch.cuda.is_available() else 'cpu'
-    ddpm = Diffusion(3, 3, (0.0001, 0.02), 1000, 'cuda:1')
+    device = 'cuda:2' if torch.cuda.is_available() else 'cpu'
+    ddpm = Diffusion(3, 3, (0.0001, 0.02), 1000, device)
     ddpm.to(device)
     tf = transforms.Compose(
         [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     )
 
     dataset = CIFAR10(
-        "/mnt/data0/public_datasets/torch_build_in_datas",
+        "/mnt/data0/xuekang/workspace/datasets",
         train=True,
         download=True,
         transform=tf,
