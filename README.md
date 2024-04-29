@@ -5,4 +5,4 @@ A simple implement of the DDPM model with cifar10
 - [X] 完成DDPM损失函数
 - [X] 完成DDPM生成cifar10样本
 - [X] 标准化代码
-- [ ] 理论笔记
+- [ ] 理论笔记，目前更新至训练loss完结，下一步为最终部分，即推理
